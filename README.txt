@@ -16,10 +16,10 @@ func New(t testing.TB) *Gate
     New constructs a Gate for some test.
 
 func (g *Gate) Close()
-    Close causes any goroutines blocked in Wait to exit, failing the test.
+    Close causes any goroutines blocked in Wait, Start or Stop to exit.
     Close is safe to call multiple times as well as concurrently with any
-    other method. The test is failed if Stop or Start are called after
-    Close.
+    other method. The test is failed unless Close is called after every call
+    to Wait, Stop or Start.
 
 func (g *Gate) Closed() bool
     Closed returns if the Gate has been Closed.
@@ -54,3 +54,5 @@ func (g *Gate) Wait()
     Wait will block for the next call to Stop, and continue until a call to
     Start. It is safe to call Wait concurrently with itself, Protect, and
     Close.
+
+

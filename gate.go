@@ -35,9 +35,9 @@ func New(t testing.TB) *Gate {
 // Done returns a channel that is closed whenever the Gate is Closed.
 func (g *Gate) Done() <-chan struct{} { return g.done }
 
-// Close causes any goroutines blocked in Wait to exit, failing the test. Close is safe to call
-// multiple times as well as concurrently with any other method. The test is failed if Stop or
-// Start are called after Close.
+// Close causes any goroutines blocked in Wait, Start or Stop to exit. Close is safe to call
+// multiple times as well as concurrently with any other method. The test is failed unless
+// Close is called after every call to Wait, Stop or Start.
 func (g *Gate) Close() {
 	g.mu.Lock()
 	g.closeLocked()
