@@ -8,10 +8,28 @@ import (
 )
 
 func TestGate(t *testing.T) {
+	t.Run("basic", Wrap(testGateBasic))
 	t.Run("works", Wrap(testGateWorks))
 	t.Run("fails", Wrap(testGateFails))
 	t.Run("close", Wrap(testGateClose))
 	t.Run("protect", Wrap(testGateProtect))
+}
+
+// testGateBasic tests basic properties of the Gate
+func testGateBasic(t *test) {
+	g := New(t)
+	if g.Closed() {
+		t.Fatal("gate already closed")
+	}
+	g.Close()
+	if !g.Closed() {
+		t.Fatal("gate didn't close")
+	}
+	select {
+	case <-g.Done():
+	default:
+		t.Fatal("done channel not closed")
+	}
 }
 
 // testGateWorks makes sure we can Wait.
@@ -80,6 +98,7 @@ func testGateClose(t *test) {
 	t.Run(g, func() {
 		g.Wait()
 		g.Close()
+		<-g.Done()
 	})
 
 	// wait for the first checkpoint
@@ -99,6 +118,7 @@ func testGateProtect(t *test) {
 
 	// construct a gate with the failing test wrapper
 	g := New(ft)
+	defer g.Close()
 
 	// spawn extra workers that all fail. make sure it passes anyway
 	t.Protect(g, func() { ft.Fatal("error") })

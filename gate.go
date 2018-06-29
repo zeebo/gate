@@ -15,6 +15,7 @@ type Gate struct {
 	mu     *sync.Mutex
 	cond   *sync.Cond
 	queue  chan struct{}
+	done   chan struct{}
 	run    bool
 	closed bool
 }
@@ -27,8 +28,12 @@ func New(t testing.TB) *Gate {
 
 		mu:   mu,
 		cond: sync.NewCond(mu),
+		done: make(chan struct{}),
 	}
 }
+
+// Done returns a channel that is closed whenever the Gate is Closed.
+func (g *Gate) Done() <-chan struct{} { return g.done }
 
 // Close causes any goroutines blocked in Wait to exit, failing the test. Close is safe to call
 // multiple times as well as concurrently with any other method. The test is failed if Stop or
@@ -40,8 +45,19 @@ func (g *Gate) Close() {
 	g.cond.Broadcast()
 }
 
+// Closed returns if the Gate has been Closed.
+func (g *Gate) Closed() bool {
+	g.mu.Lock()
+	out := g.closed
+	g.mu.Unlock()
+	return out
+}
+
 // closeLocked implements the logic for closing that should happen under the mutex.
 func (g *Gate) closeLocked() {
+	if !g.closed {
+		close(g.done)
+	}
 	g.closed = true
 	if g.queue != nil {
 		defer func() { recover() }()
@@ -49,19 +65,18 @@ func (g *Gate) closeLocked() {
 	}
 }
 
-// Run launches the function in a goroutine, recording that it will need to Wait for
-// calls to Stop and Start. It must be called before any calls to Start or Stop.
+// Run launches the function in a goroutine, recording that calls to Stop should wait for
+// it to call Wait. It must be called before any calls to Start or Stop.
 // The function must exit normally in order for the test to pass. If the function does
-// not exit normally, the test is failed, and it behaves as if Close is called.
+// not exit normally, the test is failed, and the Gate behaves as if Close is called.
 func (g *Gate) Run(fn func()) {
 	g.workers++
 	g.Protect(fn)
 }
 
-// Protect launches the function in a goroutine, but will not record that it needs to
-// Wait for calls to Stop and Start. It can be called concurrently with Start or Stop.
-// The function must exit normally in order for the test to pass. If the function does
-// not exit normally, the test is failed, and it behaves as if Close is called.
+// Protect launches the function in a goroutine. The function must exit normally in order for
+// the test to pass. If the function does not exit normally, the test is failed, and the Gate
+// behaves as if Close is called.
 func (g *Gate) Protect(fn func()) {
 	go func() {
 		normal := false

@@ -21,19 +21,24 @@ func (g *Gate) Close()
     other method. The test is failed if Stop or Start are called after
     Close.
 
+func (g *Gate) Closed() bool
+    Closed returns if the Gate has been Closed.
+
+func (g *Gate) Done() <-chan struct{}
+    Done returns a channel that is closed whenever the Gate is Closed.
+
 func (g *Gate) Protect(fn func())
-    Protect launches the function in a goroutine, but will not record that
-    it needs to Wait for calls to Stop and Start. It can be called
-    concurrently with Start or Stop. The function must exit normally in
-    order for the test to pass. If the function does not exit normally, the
-    test is failed, and it behaves as if Close is called.
+    Protect launches the function in a goroutine. The function must exit
+    normally in order for the test to pass. If the function does not exit
+    normally, the test is failed, and the Gate behaves as if Close is
+    called.
 
 func (g *Gate) Run(fn func())
-    Run launches the function in a goroutine, recording that it will need to
-    Wait for calls to Stop and Start. It must be called before any calls to
+    Run launches the function in a goroutine, recording that calls to Stop
+    should wait for it to call Wait. It must be called before any calls to
     Start or Stop. The function must exit normally in order for the test to
-    pass. If the function does not exit normally, the test is failed, and it
-    behaves as if Close is called.
+    pass. If the function does not exit normally, the test is failed, and
+    the Gate behaves as if Close is called.
 
 func (g *Gate) Start()
     Start should be called after Stop has returned. It is safe to call
