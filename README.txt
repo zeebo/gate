@@ -16,18 +16,17 @@ func New(t testing.TB) *Gate
     New constructs a Gate for some test.
 
 func (g *Gate) Close()
-    Close causes any goroutines blocked in Wait to silently exit, running
-    defers. It also closes the done channel passed in to the workers
-    allowing them to exit if they are not in Wait. Close is safe to call
-    multiple times as well as concurrently with any other method. The test
-    is failed if Stop or Start are called after Close.
+    Close causes any goroutines blocked in Wait to exit, failing the test.
+    Close is safe to call multiple times as well as concurrently with any
+    other method. The test is failed if Stop or Start are called after
+    Close.
 
-func (g *Gate) Run(fn func(done chan struct{}))
+func (g *Gate) Run(fn func())
     Run launches the function in a goroutine, recording that it will need to
-    Wait for calls to Stop and Start. It should be called before any calls
-    to Start or Stop. The function must exit normally in order for the test
-    to pass. If the function does not exit normally, it behaves as if Close
-    is called.
+    Wait for calls to Stop and Start. It must be called before any calls to
+    Start or Stop. The function must exit normally in order for the test to
+    pass. If the function does not exit normally, it behaves as if Close is
+    called.
 
 func (g *Gate) Start()
     Start should be called after Stop has returned.
