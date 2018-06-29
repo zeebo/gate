@@ -52,10 +52,17 @@ func (g *Gate) closeLocked() {
 // Run launches the function in a goroutine, recording that it will need to Wait for
 // calls to Stop and Start. It must be called before any calls to Start or Stop.
 // The function must exit normally in order for the test to pass. If the function does
-// not exit normally, it behaves as if Close is called.
+// not exit normally, the test is failed, and it behaves as if Close is called.
 func (g *Gate) Run(fn func()) {
 	g.workers++
+	g.Protect(fn)
+}
 
+// Protect launches the function in a goroutine, but will not record that it needs to
+// Wait for calls to Stop and Start. It can be called concurrently with Start or Stop.
+// The function must exit normally in order for the test to pass. If the function does
+// not exit normally, the test is failed, and it behaves as if Close is called.
+func (g *Gate) Protect(fn func()) {
 	go func() {
 		normal := false
 		defer func() {
@@ -86,7 +93,7 @@ func (g *Gate) Run(fn func()) {
 }
 
 // Wait will block for the next call to Stop, and continue until a call to Start. It is
-// safe to call Wait concurrently with itself and Close.
+// safe to call Wait concurrently with itself, Protect, and Close.
 func (g *Gate) Wait() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -129,7 +136,7 @@ func (g *Gate) checkFailedAnd(fn func()) {
 
 // Stop will block for the appropriate number of Wait calls. The Wait calls will remain blocked
 // until a call to Start. It is not safe to call Stop and Start concurrently with each other,
-// but it is safe to call concurrently with Wait and Close.
+// but it is safe to call concurrently with Wait, Protect, and Close.
 func (g *Gate) Stop() {
 	// make sure Stop will eventually proceed because some workers can possibly exist.
 	g.checkFailedAnd(func() {
@@ -147,7 +154,8 @@ func (g *Gate) Stop() {
 	g.checkFailedAnd(nil)
 }
 
-// Start should be called after Stop has returned.
+// Start should be called after Stop has returned. It is safe to call concurrently with
+// Protect and Close.
 func (g *Gate) Start() {
 	// start up the waiting workers
 	g.checkFailedAnd(func() {

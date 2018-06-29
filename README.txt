@@ -21,22 +21,31 @@ func (g *Gate) Close()
     other method. The test is failed if Stop or Start are called after
     Close.
 
+func (g *Gate) Protect(fn func())
+    Protect launches the function in a goroutine, but will not record that
+    it needs to Wait for calls to Stop and Start. It can be called
+    concurrently with Start or Stop. The function must exit normally in
+    order for the test to pass. If the function does not exit normally, the
+    test is failed, and it behaves as if Close is called.
+
 func (g *Gate) Run(fn func())
     Run launches the function in a goroutine, recording that it will need to
     Wait for calls to Stop and Start. It must be called before any calls to
     Start or Stop. The function must exit normally in order for the test to
-    pass. If the function does not exit normally, it behaves as if Close is
-    called.
+    pass. If the function does not exit normally, the test is failed, and it
+    behaves as if Close is called.
 
 func (g *Gate) Start()
-    Start should be called after Stop has returned.
+    Start should be called after Stop has returned. It is safe to call
+    concurrently with Protect and Close.
 
 func (g *Gate) Stop()
     Stop will block for the appropriate number of Wait calls. The Wait calls
     will remain blocked until a call to Start. It is not safe to call Stop
     and Start concurrently with each other, but it is safe to call
-    concurrently with Wait and Close.
+    concurrently with Wait, Protect, and Close.
 
 func (g *Gate) Wait()
     Wait will block for the next call to Stop, and continue until a call to
-    Start. It is safe to call Wait concurrently with itself and Close.
+    Start. It is safe to call Wait concurrently with itself, Protect, and
+    Close.

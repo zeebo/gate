@@ -11,6 +11,7 @@ func TestGate(t *testing.T) {
 	t.Run("works", Wrap(testGateWorks))
 	t.Run("fails", Wrap(testGateFails))
 	t.Run("close", Wrap(testGateClose))
+	t.Run("protect", Wrap(testGateProtect))
 }
 
 // testGateWorks makes sure we can Wait.
@@ -91,6 +92,23 @@ func testGateClose(t *test) {
 	panic("unreachable")
 }
 
+func testGateProtect(t *test) {
+	// this test is expected to fail
+	ft := &failingTest{TB: t}
+	defer ft.Check()
+
+	// construct a gate with the failing test wrapper
+	g := New(ft)
+
+	// spawn extra workers that all fail. make sure it passes anyway
+	t.Protect(g, func() { ft.Fatal("error") })
+	t.Protect(g, func() { panic("some failure") })
+	t.Protect(g, func() { runtime.Goexit() })
+
+	// ensure all of the goroutines exit
+	t.Check()
+}
+
 //
 // helpers
 //
@@ -109,19 +127,24 @@ func Wrap(fn func(t *test)) func(*testing.T) {
 
 		te := &test{
 			T:       t,
-			tracker: newTracker(),
+			tracker: newTracker(t),
 		}
-		defer te.Check(t)
+		defer te.Check()
 
 		fn(te)
 	}
 }
 
-// run is a helper for running in a gate, keeping track of the goroutine
-// and making sure the done channel is closed.
+// Run is a helper for using Run, keeping track of the goroutine.
 func (t *test) Run(g *Gate, fn func()) {
 	t.Add()
 	g.Run(func() { defer t.Done(); fn() })
+}
+
+// Protect is a helper for using Protect, keeping track of the goroutine.
+func (t *test) Protect(g *Gate, fn func()) {
+	t.Add()
+	g.Protect(func() { defer t.Done(); fn() })
 }
 
 // failingTest wraps a TB and doesn't actually fail the test
@@ -189,6 +212,8 @@ func (n *failingTest) Fatal(args ...interface{}) {
 
 // tracker keeps track of a number of goroutines
 type tracker struct {
+	t testing.TB
+
 	mu     *sync.Mutex
 	cond   *sync.Cond
 	c      int
@@ -196,9 +221,11 @@ type tracker struct {
 }
 
 // newTracker constructs a tracker.
-func newTracker() *tracker {
+func newTracker(t testing.TB) *tracker {
 	mu := new(sync.Mutex)
 	return &tracker{
+		t: t,
+
 		mu:   mu,
 		cond: sync.NewCond(mu),
 	}
@@ -220,7 +247,7 @@ func (t *tracker) Done() {
 }
 
 // check gives the runtime a minute to make sure all the goroutines clean up.
-func (t *tracker) Check(tb testing.TB) {
+func (t *tracker) Check() {
 	ti := time.AfterFunc(time.Minute, func() {
 		t.mu.Lock()
 		t.failed = true
@@ -238,6 +265,6 @@ func (t *tracker) Check(tb testing.TB) {
 	}
 
 	if t.failed {
-		tb.Error("goroutines didn't clean up in time")
+		t.t.Error("goroutines didn't clean up in time")
 	}
 }
